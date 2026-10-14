@@ -1,0 +1,4 @@
+ios/Cami.xcodeproj/
+ios/Cami/Info.plist
+build/
+*.ipa

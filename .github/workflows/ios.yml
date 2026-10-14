@@ -1,0 +1,33 @@
+# Builds an unsigned Cami.ipa; sign and install it from Linux with Impactor and a free Apple ID.
+name: iOS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Generate Xcode project
+        run: brew install xcodegen && xcodegen generate --spec ios/project.yml
+
+      - name: Build
+        run: |
+          xcodebuild -project ios/Cami.xcodeproj -scheme Cami -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO build
+
+      - name: Package .ipa
+        run: |
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/Cami.app Payload/
+          zip -qr Cami.ipa Payload
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Cami
+          path: Cami.ipa
