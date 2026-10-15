@@ -9,6 +9,7 @@ final class Streamer: NSObject, ObservableObject, AVCaptureVideoDataOutputSample
     @Published var cameras: [AVCaptureDevice] = []
     @Published var camera: AVCaptureDevice?
     @Published var mode = ""
+    @Published var stats = ""
 
     let session = AVCaptureSession()
     let previewLayer = AVCaptureVideoPreviewLayer()
@@ -24,6 +25,9 @@ final class Streamer: NSObject, ObservableObject, AVCaptureVideoDataOutputSample
     private var encoderSize = (Int32(0), Int32(0))
     private var fps = 60.0
     private var needKeyframe = true
+    private var statsStart = Date()
+    private var captured = 0, sent = 0, networkDrops = 0
+    private var cameraDrops: [String: Int] = [:]
 
     override init() {
         super.init()
@@ -57,7 +61,6 @@ final class Streamer: NSObject, ObservableObject, AVCaptureVideoDataOutputSample
         ).devices
         session.beginConfiguration()
         session.sessionPreset = .inputPriority // the format comes from bestFormat(of:), not a preset
-        output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange]
         output.alwaysDiscardsLateVideoFrames = true
         output.setSampleBufferDelegate(self, queue: queue)
         if session.canAddOutput(output) { session.addOutput(output) }
@@ -78,6 +81,8 @@ final class Streamer: NSObject, ObservableObject, AVCaptureVideoDataOutputSample
             device.activeVideoMinFrameDuration = rate.minFrameDuration
             device.activeVideoMaxFrameDuration = rate.minFrameDuration
             device.unlockForConfiguration()
+            // The sensor's own pixel format: any other one costs a 4K conversion on every frame.
+            output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: CMFormatDescriptionGetMediaSubType(format.formatDescription)]
             let size = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
             fps = rate.maxFrameRate
             mode = "\(size.width)×\(size.height) · \(Int(fps.rounded())) fps"
@@ -135,9 +140,12 @@ final class Streamer: NSObject, ObservableObject, AVCaptureVideoDataOutputSample
     }
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sample: CMSampleBuffer, from connection: AVCaptureConnection) {
+        captured += 1
+        updateStats()
         guard client != nil, let frame = CMSampleBufferGetImageBuffer(sample) else { return }
-        // ponytail: drop frames while the link is backed up and resume on a keyframe; add bitrate adaptation if Wi-Fi gets choppy
-        if inFlight > 2 { needKeyframe = true; return }
+        // Dropping before the encoder keeps its reference chain intact, so no keyframe is needed to recover.
+        // ponytail: plain drop while the link is backed up; add bitrate adaptation if Wi-Fi gets choppy
+        if inFlight > 4 { networkDrops += 1; return }
         let size = (Int32(CVPixelBufferGetWidth(frame)), Int32(CVPixelBufferGetHeight(frame)))
         if encoder == nil || encoderSize != size { makeEncoder(size) }
         guard let encoder else { return }
@@ -148,6 +156,33 @@ final class Streamer: NSObject, ObservableObject, AVCaptureVideoDataOutputSample
             guard status == noErr, let encoded, let data = Streamer.annexB(encoded) else { return }
             self?.queue.async { self?.send(data) }
         }
+    }
+
+    /// Frames the camera produced but never delivered, keyed by Apple's reason (FrameWasLate, OutOfBuffers...).
+    func captureOutput(_ output: AVCaptureOutput, didDrop sample: CMSampleBuffer, from connection: AVCaptureConnection) {
+        let reason = CMGetAttachment(sample, key: kCMSampleBufferAttachmentKey_DroppedFrameReason, attachmentModeOut: nil) as? String
+        cameraDrops[reason ?? "?", default: 0] += 1
+    }
+
+    /// One line per second on screen: where frames are lost, if anywhere.
+    private func updateStats() {
+        let elapsed = -statsStart.timeIntervalSinceNow
+        guard elapsed >= 1 else { return }
+        var parts = [String(format: "cámara %.0f · enviado %.0f fps", Double(captured) / elapsed, Double(sent) / elapsed)]
+        if networkDrops > 0 { parts.append("red \(networkDrops)") }
+        parts += cameraDrops.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }
+        if let device = (session.inputs.first as? AVCaptureDeviceInput)?.device {
+            parts.append("mín \(Int((1 / device.activeVideoMaxFrameDuration.seconds).rounded())) fps")
+            parts.append("temp \(device.systemPressureState.level.rawValue)")
+        }
+        parts.append("rot \(Int(output.connection(with: .video)?.videoRotationAngle ?? 0))°")
+        let text = parts.joined(separator: " · ")
+        DispatchQueue.main.async { self.stats = text }
+        statsStart = Date()
+        captured = 0
+        sent = 0
+        networkDrops = 0
+        cameraDrops = [:]
     }
 
     // MARK: Encoding
@@ -164,6 +199,8 @@ final class Streamer: NSObject, ObservableObject, AVCaptureVideoDataOutputSample
         let bitrate = Double(size.0) * Double(size.1) * fps / 10 // ~50 Mbps at 4K60, ~12 Mbps at 1080p60
         VTSessionSetProperty(session, key: kVTCompressionPropertyKey_RealTime, value: kCFBooleanTrue)
         VTSessionSetProperty(session, key: kVTCompressionPropertyKey_AllowFrameReordering, value: kCFBooleanFalse)
+        // Emit each frame as soon as it's encoded: held frames add latency and pin capture buffers.
+        VTSessionSetProperty(session, key: kVTCompressionPropertyKey_MaxFrameDelayCount, value: NSNumber(value: 0))
         VTSessionSetProperty(session, key: kVTCompressionPropertyKey_ProfileLevel, value: kVTProfileLevel_HEVC_Main_AutoLevel)
         VTSessionSetProperty(session, key: kVTCompressionPropertyKey_ExpectedFrameRate, value: NSNumber(value: fps))
         VTSessionSetProperty(session, key: kVTCompressionPropertyKey_AverageBitRate, value: NSNumber(value: bitrate))
@@ -245,6 +282,7 @@ final class Streamer: NSObject, ObservableObject, AVCaptureVideoDataOutputSample
     private func send(_ data: Data) {
         guard let connection = client else { return }
         inFlight += 1
+        sent += 1
         connection.send(content: data, completion: .contentProcessed { [weak self] _ in
             guard let self, self.client === connection else { return }
             self.inFlight -= 1

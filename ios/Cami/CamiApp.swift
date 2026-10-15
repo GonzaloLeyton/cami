@@ -22,6 +22,7 @@ struct ContentView: View {
                     ForEach(streamer.cameras, id: \.uniqueID) { Text($0.localizedName).tag(Optional($0.uniqueID)) }
                 }
                 Text(streamer.mode).font(.caption.monospacedDigit())
+                Text(streamer.stats).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
                 HStack { Text("Zoom"); Slider(value: $zoom, in: 1...5) }
                     .onChange(of: zoom) { streamer.setZoom(zoom) }
                 HStack { Text("Exposición"); Slider(value: $exposure, in: -2...2) }
