@@ -8,11 +8,11 @@ El script de Linux (`linux/cami.sh`) la recibe por USB o Wi-Fi y la escribe en l
 GitHub Actions compila `Cami.ipa` sin firmar en cada push a `main` (ver `.github/workflows/ios.yml`).
 
 1. Descarga la última compilación: `gh run download -R GonzaloLeyton/cami -n Cami`
-2. Abre [Impactor](https://github.com/khcrysalis/Impactor), entra con tu Apple ID (sirve el gratuito) y con el iPhone conectado por cable instala `Cami.ipa`.
+2. Abre [iloader](https://github.com/nab138/iloader), entra con tu Apple ID (sirve el gratuito) y con el iPhone conectado por cable usa **Import IPA** con `Cami.ipa`.
 3. En el iPhone: Ajustes → Privacidad y seguridad → **Modo desarrollador** activado.
    La primera vez: Ajustes → General → VPN y gestión de dispositivos → confiar en tu cuenta.
 
-Con un Apple ID gratuito la app caduca a los 7 días: vuelve a instalar el mismo `Cami.ipa` con Impactor.
+Con un Apple ID gratuito la app caduca a los 7 días: vuelve a instalar el mismo `Cami.ipa` con iloader.
 
 ## 2. Usarla en Linux
 
