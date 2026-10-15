@@ -16,15 +16,19 @@ Con un Apple ID gratuito la app caduca a los 7 días: vuelve a instalar el mismo
 
 ## 2. Usarla en Linux
 
-1. Abre Cami en el iPhone y déjala en primer plano. La pantalla no se apaga sola.
-2. Con el cable conectado:
+Una sola vez, activa el servicio que arranca el receptor al iniciar sesión:
 
-   ```bash
-   ./linux/cami.sh
-   ```
+```bash
+systemctl --user enable --now ~/Documents/cami/linux/cami.service
+```
 
-   Por Wi-Fi: `./linux/cami.sh <IP del iPhone>`.
-3. En Zoom, Meet, OBS u otra app, elige la cámara **iPhone Cam**.
+Desde ahí:
+
+1. Conecta el iPhone por cable, abre Cami y déjala en primer plano. La pantalla no se apaga sola.
+2. En Zoom, Meet, OBS u otra app, elige la cámara **iPhone Cam**.
+
+Logs: `journalctl --user -u cami -f`. Desactivarlo: `systemctl --user disable --now cami`.
+Por Wi-Fi, sin el servicio: `./linux/cami.sh <IP del iPhone>`.
 
 Elige la cámara del iPhone antes de abrir la app de videollamada. Si la nueva cámara tiene otro modo máximo, el formato cambia, y eso no es posible mientras una app está leyendo la cámara virtual.
 

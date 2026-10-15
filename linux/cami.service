@@ -1,0 +1,12 @@
+# Starts the Cami receiver at login; it connects whenever the iPhone app is open.
+#   systemctl --user enable --now ~/Documents/cami/linux/cami.service
+[Unit]
+Description=Cami: iPhone como webcam (iPhone Cam)
+
+[Service]
+ExecStart=%h/Documents/cami/linux/cami.sh
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target
