@@ -28,4 +28,4 @@ Con un Apple ID gratuito la app caduca a los 7 días: vuelve a instalar el mismo
 
 Elige la cámara del iPhone antes de abrir la app de videollamada. Si la nueva cámara tiene otro modo máximo, el formato cambia, y eso no es posible mientras una app está leyendo la cámara virtual.
 
-Linux decodifica en la GPU: 4K60 HEVC con baja latencia no cabe en un solo núcleo de CPU. Probado a 61.8 fps en un Ryzen 5800X con una RTX 3060.
+Linux decodifica en la GPU: 4K60 HEVC con baja latencia no cabe en un solo núcleo de CPU. Probado con un iPhone 16 Plus por USB: 3840×2160 a 60 fps y ~50 Mbps, en un Ryzen 5800X con una RTX 3060.
